@@ -1,0 +1,158 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               Int             @id @default(autoincrement())
+  email            String          @unique
+  password         String
+  name             String
+  lastName         String?
+  phone            String?
+  bio              String?
+  avatar           String?
+  role             String          @default("GUEST") // ADMIN, PROPIETARIO, INQUILINO, GUEST
+  status           String          @default("PENDING") // PENDING, APPROVED, REJECTED
+  dynamicData      String?         // JSON string for dynamic fields
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  propertiesOwned  Property[]      @relation("PropertyOwner")
+  propertiesRented Property[]      @relation("PropertyTenant")
+  maintenances     Maintenance[]
+  documentation    Documentation[]
+  notifications    Notification[]
+  paymentsAsTenant Payment[]       @relation("PaymentTenant")
+  paymentsCreated  Payment[]       @relation("PaymentCreator")
+}
+
+model DynamicField {
+  id        Int     @id @default(autoincrement())
+  label     String
+  name      String  @unique
+  type      String  // text, number, date, select
+  required  Boolean @default(false)
+  options   String? // Comma separated options for select
+  order     Int     @default(0)
+  active    Boolean @default(true)
+}
+
+model City {
+  id         Int        @id @default(autoincrement())
+  name       String     @unique
+  active     Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+  properties Property[]
+}
+
+model PropertyType {
+  id         Int        @id @default(autoincrement())
+  name       String     @unique
+  active     Boolean    @default(true)
+  showInMenu Boolean    @default(false)
+  createdAt  DateTime   @default(now())
+  properties Property[]
+}
+
+model PropertyStatus {
+  id         Int        @id @default(autoincrement())
+  name       String     @unique
+  active     Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+}
+
+model Property {
+  id             Int           @id @default(autoincrement())
+  propertyCode   String        @unique
+  title          String
+  tenantId       Int?
+  tenant         User?         @relation("PropertyTenant", fields: [tenantId], references: [id])
+  ownerId        Int
+  owner          User          @relation("PropertyOwner", fields: [ownerId], references: [id])
+  cityId         Int
+  city           City          @relation(fields: [cityId], references: [id])
+  address        String
+  parkingSpots   Int           @default(0)
+  warehouses     Int           @default(0)
+  deedNumber     String?
+  image          String?
+  propertyTypeId Int
+  propertyType   PropertyType  @relation(fields: [propertyTypeId], references: [id])
+  rentValue      Float
+  status         String        @default("DISPONIBLE") // DISPONIBLE, ALQUILADA, MANTENIMIENTO
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  maintenances     Maintenance[]
+  documentation    Documentation[]
+  payments         Payment[]
+}
+
+model Maintenance {
+  id              String   @id @default(uuid())
+  propertyId      Int
+  property        Property @relation(fields: [propertyId], references: [id])
+  requesterId     Int
+  requester       User     @relation(fields: [requesterId], references: [id])
+  status          String   @default("ABIERTO") // ABIERTO, RESUELTO, CANCELADO
+  summary         String
+  description     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model PortalConfig {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Documentation {
+  id          String   @id @default(uuid())
+  title       String
+  fileUrl     String
+  fileType    String   // PDF, EXCEL, CSV, IMAGE
+  propertyId  Int
+  property    Property @relation(fields: [propertyId], references: [id])
+  uploaderId  Int
+  uploader    User     @relation(fields: [uploaderId], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  type        String   // MAINTENANCE_CREATED, MAINTENANCE_STATUS_CHANGED, DOCUMENTATION_UPLOADED
+  title       String
+  message     String
+  relatedId   String?  // ID del mantenimiento o documentación relacionada
+  relatedType String?  // MAINTENANCE, DOCUMENTATION
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model Payment {
+  id            String    @id @default(uuid())
+  propertyId    Int
+  property      Property  @relation(fields: [propertyId], references: [id])
+  tenantId      Int?
+  tenant        User?     @relation("PaymentTenant", fields: [tenantId], references: [id])
+  amount        Float
+  paymentDate   DateTime?
+  dueDate       DateTime
+  status        String    @default("PENDING") // PENDING, PROCESSING, PAID, LATE, CANCELLED
+  paymentMethod String?   // CASH, TRANSFER, CHECK, CARD
+  reference     String?   // Número de referencia/comprobante
+  notes         String?
+  receiptUrl    String?   // URL del comprobante escaneado
+  createdById   Int
+  createdBy     User      @relation("PaymentCreator", fields: [createdById], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
